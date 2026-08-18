@@ -1,0 +1,97 @@
+spring:
+  application:
+    name: visionselect-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/visionselect}
+    username: ${DB_USERNAME:visionselect}
+    password: ${DB_PASSWORD:visionselect}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 30000
+      pool-name: visionselect-hikari
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway migrations, never by Hibernate. This stays
+      # "validate" in every profile so the app fails fast on drift instead
+      # of silently auto-altering tables.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    clean-disabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    # GlobalExceptionHandler owns the response shape entirely; never let
+    # Spring Boot's default error body (or a raw message/stacktrace) leak
+    # to a client instead of the standard envelope.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    jwt:
+      # Placeholders only. No code reads these yet - Phase 2B explicitly
+      # excludes authentication logic. Real secret comes from the
+      # environment-injected secrets manager per security-contract.md,
+      # never a checked-in default.
+      secret: ${JWT_SECRET:CHANGE_ME_LOCAL_DEV_ONLY_NOT_FOR_PROD_USE}
+      access-token-expiration-minutes: ${JWT_ACCESS_EXPIRATION_MINUTES:45}
+      refresh-token-expiration-days: ${JWT_REFRESH_EXPIRATION_DAYS:21}
+    internal:
+      service-token-header: X-Internal-Service-Token
+      service-token: ${INTERNAL_SERVICE_TOKEN:CHANGE_ME_LOCAL_DEV_ONLY_NOT_FOR_PROD_USE}
+  video:
+    # How long an issued upload URL remains valid before the client must
+    # request a new one. Independent of any single StorageProvider's own
+    # notion of expiry - this is the business-level TTL VideoService hands
+    # every provider implementation.
+    upload-url-ttl-minutes: ${VIDEO_UPLOAD_URL_TTL_MINUTES:15}
+  storage:
+    # Which StorageProvider bean backs the app. Only "local" exists as of
+    # this phase (LocalStorageProvider) - "s3" / "gcs" are documented
+    # future values per storage-contract.md, not yet implemented.
+    provider: ${STORAGE_PROVIDER:local}
+    local:
+      base-directory: ${STORAGE_LOCAL_BASE_DIRECTORY:./data/local-storage}
+      # Must be reachable from whatever is doing the direct upload (the
+      # frontend's browser). In a real deployment this is the backend's
+      # public origin; in local dev, the same host:port Spring is bound to.
+      public-base-url: ${STORAGE_LOCAL_PUBLIC_BASE_URL:http://localhost:8080}
+      upload-grant-ttl-seconds: ${STORAGE_LOCAL_UPLOAD_GRANT_TTL_SECONDS:900}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+# Note: the console/file log line format (including the MDC requestId) is
+# defined explicitly in logback-spring.xml, not via logging.pattern.* here.
