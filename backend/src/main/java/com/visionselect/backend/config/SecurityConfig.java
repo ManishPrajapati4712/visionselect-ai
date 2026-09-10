@@ -4,6 +4,7 @@ import com.visionselect.backend.auth.security.JwtAuthenticationEntryPoint;
 import com.visionselect.backend.auth.security.JwtAuthenticationFilter;
 import com.visionselect.backend.auth.security.RestAccessDeniedHandler;
 import com.visionselect.backend.common.util.ApiPaths;
+import com.visionselect.backend.config.InternalServiceTokenFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,13 +64,16 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
+    private final InternalServiceTokenFilter internalServiceTokenFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                            JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
-                           RestAccessDeniedHandler restAccessDeniedHandler) {
+                           RestAccessDeniedHandler restAccessDeniedHandler,
+                           InternalServiceTokenFilter internalServiceTokenFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
         this.restAccessDeniedHandler = restAccessDeniedHandler;
+        this.internalServiceTokenFilter = internalServiceTokenFilter;
     }
 
     @Bean
@@ -100,6 +104,10 @@ public class SecurityConfig {
                         // straight to S3 doesn't carry this backend's JWT either, and
                         // this endpoint is not part of the versioned /api/v1 contract.
                         .requestMatchers("/local-storage/**").permitAll()
+                        // Internal AI callback: protected by X-Internal-Service-Token
+                        // header (InternalServiceTokenFilter), NOT by JWT. The filter
+                        // runs before this chain and rejects invalid tokens with 401/403.
+                        .requestMatchers("/internal/**").permitAll()
                         // Everything else (including /auth/logout, /users/me,
                         // and every business-module route added in later
                         // phases) requires a valid access token by default.
@@ -109,6 +117,10 @@ public class SecurityConfig {
                         // built, via @PreAuthorize.
                         .anyRequest().authenticated()
                 )
+                // InternalServiceTokenFilter runs before the JWT filter so that
+                // /internal/** requests are validated by service-token and never
+                // reach the JWT authentication machinery.
+                .addFilterBefore(internalServiceTokenFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

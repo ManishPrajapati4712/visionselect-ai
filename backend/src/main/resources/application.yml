@@ -77,6 +77,13 @@ app:
       # public origin; in local dev, the same host:port Spring is bound to.
       public-base-url: ${STORAGE_LOCAL_PUBLIC_BASE_URL:http://localhost:8080}
       upload-grant-ttl-seconds: ${STORAGE_LOCAL_UPLOAD_GRANT_TTL_SECONDS:900}
+  ai:
+    # URL of the Python FastAPI AI service. Never hardcode; always use env var.
+    python-service-url: ${PYTHON_AI_SERVICE_URL:http://localhost:8000}
+    # Base URL this backend is reachable at, for building callback URLs.
+    internal-base-url: ${INTERNAL_BASE_URL:http://localhost:8080}
+    # How long the signed download URL issued to the Python service stays valid.
+    download-url-ttl-minutes: ${AI_DOWNLOAD_URL_TTL_MINUTES:60}
 
 management:
   endpoints:
